@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Stock | Gestión de Inventario</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="navbar">
+    <div class="logo">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+        <span>Nexus<strong>Stock</strong></span>
+    </div>
+</header>
+
+<main class="container">
+    <section class="form-card">
+        <h2>Detalles del Producto</h2>
+        <form id="form">
+            <div class="input-group">
+                <input type="text" id="nombre" placeholder=" " required>
+                <label for="nombre">Nombre</label>
+            </div>
+            <div class="input-group">
+                <input type="text" id="descripcion" placeholder=" " required>
+                <label for="descripcion">Descripción</label>
+            </div>
+            <div class="input-group">
+                <input type="number" id="precio" placeholder=" " required>
+                <label for="precio">Precio ($)</label>
+            </div>
+            <div class="input-group">
+                <input type="number" id="stock" placeholder=" " required>
+                <label for="stock">Stock</label>
+            </div>
+            <div class="input-group">
+                <select id="categoria" required>
+                    <option value="" disabled selected hidden></option>
+                    <option>Electrónica</option>
+                    <option>Ropa</option>
+                    <option>Alimentos</option>
+                </select>
+                <label for="categoria">Categoría</label>
+            </div>
+            <button type="submit" class="btn-primary" id="btn-submit">Guardar Producto</button>
+        </form>
+    </section>
+
+    <div class="search-container">
+        <div class="search-box">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="buscar" placeholder="Buscar producto por nombre...">
+        </div>
+    </div>
+
+    <section class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Categoría</th>
+                    <th style="text-align: right;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tabla"></tbody>
+        </table>
+    </section>
+</main>
+
+<script>
+const API = "/productos";
+let editando = null;
+let productosLocales = []; // Para filtrar sin recargar la API constantemente
+
+const form = document.getElementById("form");
+const tabla = document.getElementById("tabla");
+const inputBuscar = document.getElementById("buscar");
+
+// Escuchar escritura en el buscador
+inputBuscar.addEventListener("input", (e) => {
+    const termino = e.target.value.toLowerCase();
+    renderizarTabla(productosLocales.filter(p => 
+        p.nombre.toLowerCase().includes(termino)
+    ));
+});
+
+form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const producto = {
+        nombre: document.getElementById("nombre").value,
+        descripcion: document.getElementById("descripcion").value,
+        precio: Number(document.getElementById("precio").value),
+        stock: Number(document.getElementById("stock").value),
+        categoria: document.getElementById("categoria").value
+    };
+
+    if (editando) {
+        await fetch(`${API}/${editando}`, {
+            method: "PUT",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(producto)
+        });
+        editando = null;
+        document.getElementById("btn-submit").innerText = "Guardar Producto";
+    } else {
+        await fetch(API, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(producto)
+        });
+    }
+
+    form.reset();
+    inputBuscar.value = ""; // Limpiar búsqueda al guardar
+    cargarProductos();
+});
+
+async function cargarProductos() {
+    try {
+        const res = await fetch(API);
+        productosLocales = await res.json();
+        renderizarTabla(productosLocales);
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
+
+function renderizarTabla(data) {
+    tabla.innerHTML = "";
+    data.forEach(p => {
+        tabla.innerHTML += `
+            <tr>
+                <td>
+                    <div style="font-weight: 600; color: #1e293b;">${p.nombre}</div>
+                    <div style="font-size: 0.8rem; color: #64748b;">${p.descripcion}</div>
+                </td>
+                <td>$${p.precio.toLocaleString()}</td>
+                <td><span class="badge">${p.stock} ud.</span></td>
+                <td>${p.categoria}</td>
+                <td style="text-align: right;">
+                    <button class="btn-edit" onclick="editar('${p._id}', '${p.nombre}', '${p.descripcion}', ${p.precio}, ${p.stock}, '${p.categoria}')">Editar</button>
+                    <button class="btn-delete" onclick="eliminar('${p._id}')">Eliminar</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function editar(id, n, d, p, s, c) {
+    document.getElementById("nombre").value = n;
+    document.getElementById("descripcion").value = d;
+    document.getElementById("precio").value = p;
+    document.getElementById("stock").value = s;
+    document.getElementById("categoria").value = c;
+    editando = id;
+    document.getElementById("btn-submit").innerText = "Actualizar Producto";
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function eliminar(id) {
+    if(confirm("¿Eliminar este producto?")) {
+        await fetch(`${API}/${id}`, { method: "DELETE" });
+        cargarProductos();
+    }
+}
+
+cargarProductos();
+</script>
+</body>
+</html>
